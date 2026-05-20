@@ -1,0 +1,358 @@
+{
+  "name": "Fraud Detection",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-model",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        0
+      ],
+      "id": "8b327764-88bc-47e6-a295-88a2a222fc0f",
+      "name": "Deployment Trigger",
+      "webhookId": "2b5e6d07-5609-4d6e-9c00-67af889f7ec6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ambil semua commit\nconst commits = items[0].json.body.commits;\n\n// Gabungkan semua file yang di-modified/added\nlet allFiles = [];\nfor (const commit of commits) {\n  allFiles = allFiles.concat(commit.modified, commit.added);\n}\n\n// Cari file yang akhiran .pkl\nconst modelFile = allFiles.find(file => file.endsWith('.pkl'));\n\n// Return path file tersebut\nreturn [{\n  json: {\n    model_path: modelFile \n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "f749d299-a8fc-4feb-9ee2-62ede5aac1c2",
+      "name": "Set File Paths"
+    },
+    {
+      "parameters": {
+        "url": "=https://raw.githubusercontent.com/Awee3/tugas_akhir/main/{{ $json.model_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        160,
+        0
+      ],
+      "id": "533fa7b5-9cde-4bf4-9445-e882e879459d",
+      "name": "Fetch Model",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "f3K546Z5M3NSDOLr",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/home/node/.n8n-files/models/{{ $json.model_path.split('/').pop() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        384,
+        0
+      ],
+      "id": "20f89028-de86-46b7-800f-352afd530079",
+      "name": "Save to shared volume"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fraud-api:5000/reload",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        608,
+        0
+      ],
+      "id": "58a06f45-6ad1-4404-b14f-b0d383a1f873",
+      "name": "API : Trigger Hot-Reload"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        320
+      ],
+      "id": "360b6d2b-9959-4ad2-949b-8297dacb922f",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "http://fraud-api-container:5000/logs",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -64,
+        320
+      ],
+      "id": "89f9418c-ea79-4193-8e5e-4a6372c5f6e2",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/.n8n-files/monitoring_config/static_baseline.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        320
+      ],
+      "id": "031666da-1787-4f70-a1a4-9a78803d05ad",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Ambil data transaksi dari API\nconst httpItems = $items(\"HTTP Request\");\nlet logs = [];\n\n// HTTP Request n8n kadang memecah array JSON menjadi beberapa item terpisah.\n// Kita gabungkan kembali menjadi satu array utuh untuk dihitung.\nfor (let item of httpItems) {\n  if (Array.isArray(item.json)) {\n    logs = logs.concat(item.json);\n  } else {\n    logs.push(item.json);\n  }\n}\n\n// 2. BACA FILE BASELINE DENGAN NATIVE API N8N (Paling Aman)\nlet baselineData;\ntry {\n  // getBinaryDataBuffer secara otomatis menangani segala jenis kompresi/encoding bawaan n8n\n  const binaryBuffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n  const jsonString = binaryBuffer.toString('utf8');\n  \n  baselineData = JSON.parse(jsonString);\n} catch (error) {\n  // Jika masih gagal, ini akan menampilkan apa sebenarnya isi file tersebut\n  return [{ \n    json: { \n      error: \"Gagal membaca isi file JSON. Pastikan file static_baseline.json benar-benar teks murni.\", \n      pesan_sistem: error.message \n    } \n  }];\n}\n\n// 3. Validasi Data\nif (logs.length === 0 || Object.keys(logs[0]).length === 0) {\n  return [{ json: { error: \"Log transaksi kosong dari API.\" } }];\n}\n\nconst featureToCheck = \"V14\";\n\nif (!baselineData || !baselineData[featureToCheck]) {\n  return [{ json: { error: `Fitur '${featureToCheck}' tidak ditemukan di file baseline.` } }];\n}\n\n// 4. Kalkulasi Data Drift\nconst baselineMean = baselineData[featureToCheck].mean;\n\nlet sum = 0;\nlogs.forEach(row => {\n  sum += (row[featureToCheck] || 0); \n});\nconst productionMean = sum / logs.length;\n\nconst difference = Math.abs(productionMean - baselineMean);\nconst threshold = 0.1; \n\nconst isDrifting = difference > threshold;\n\n// 5. Keluarkan Hasil\nreturn [{\n  json: {\n    feature: featureToCheck,\n    baseline_mean: baselineMean,\n    production_mean: productionMean,\n    difference: difference,\n    threshold: threshold,\n    is_drifting: isDrifting,\n    total_analyzed: logs.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        320
+      ],
+      "id": "4ed21262-7559-4547-9c85-3545e0e2c59e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fa29d608-4e2e-4ff0-86be-0f582c696984",
+              "leftValue": true,
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "95c4deba-7b97-4e9c-bb3a-9631f9df520f",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        320
+      ],
+      "id": "10cb332f-195c-4d50-a373-75edbb5375b9",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "1398433235",
+        "text": "=🚨 **ALERT: DATA DRIFT DETECTED!** 🚨  Sistem MLOps mendeteksi pergeseran distribusi data pada model Fraud Detection.  📊 **Detail Analisis:** - Fitur Terdampak: {{ $json.feature }} - Rata-rata Baseline: {{ $json.baseline_mean.toFixed(4) }} - Rata-rata Produksi: {{ $json.production_mean.toFixed(4) }} - Selisih (Delta): {{ $json.difference.toFixed(4) }} - Ambang Batas Toleransi: {{ $json.threshold }} - Total Transaksi Dianalisis: {{ $json.total_analyzed }}  ⚠️ *Mohon segera lakukan evaluasi pada metrik deployment.*",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        288
+      ],
+      "id": "22ae3528-c87b-43e8-97ca-2a64bad9bcd8",
+      "name": "Send a text message",
+      "webhookId": "19574ac7-3a51-4498-a9d9-964c8ebfaf1f",
+      "credentials": {
+        "telegramApi": {
+          "id": "KchaxW2Ns7N2mqbu",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        736,
+        576
+      ],
+      "id": "36f2e7d5-0061-499e-b67a-37f917fd4734",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        192,
+        560
+      ],
+      "id": "ad306cf2-de07-4b20-be71-89ad1d048374",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Deployment Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set File Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set File Paths": {
+      "main": [
+        [
+          {
+            "node": "Fetch Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Model": {
+      "main": [
+        [
+          {
+            "node": "Save to shared volume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to shared volume": {
+      "main": [
+        [
+          {
+            "node": "API : Trigger Hot-Reload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API : Trigger Hot-Reload": {
+      "main": [
+        []
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7e6fc689-8e34-4b37-97f5-c61fb7dd706e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c34ab0d871e738741a378bcbeb3606b5fb27def1e335303715fbc582cd01931"
+  },
+  "id": "yCZI7Bmf9CFDi9XL",
+  "tags": []
+}

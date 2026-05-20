@@ -1,0 +1,23 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Logs runtime
+logs/
+*.csv
+
+# Model files (simpan di GDrive)
+models/*.pkl
+
+# Tapi kalau mau tetap push model produksi utama, exclude yang lain:
+# !models/rf_model.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db

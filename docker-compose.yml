@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # --- Service 1: n8n (Orkestrator & Monitoring) ---
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-container
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - N8N_TUNNEL_ENABLED=false
+      - WEBHOOK_URL=https://n8n.karyaakhir.web.id/
+      - N8N_USER_MANAGEMENT_DISABLED=true
+      - N8N_PROTOCOL=https
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # MAPPING BARU: n8n membaca static_baseline.json
+      - ./monitoring_config:/home/node/.n8n-files/monitoring_config:ro
+      # MAPPING BARU: n8n membaca log dari API secara Read-Only
+      - ./logs:/home/node/.n8n-files/logs:ro
+      # MAPPING BARU: Pindahkan ke zona aman n8n agar bisa ditulis (write)
+      - ./models:/home/node/.n8n-files/models
+
+  # --- Service 2: Fraud API (FastAPI) ---
+  fraud-api:
+    build: ./api
+    container_name: fraud-api-container
+    ports:
+      - "5000:5000"
+    volumes:
+      # MAPPING PENTING: Untuk Load Model
+      - ./models:/app/models
+      # MAPPING PENTING: Untuk menulis log hasil prediksi
+      - ./logs:/app/logs
+      - ./api:/app
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  n8n_data:
