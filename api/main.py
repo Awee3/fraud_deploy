@@ -1,24 +1,72 @@
 # main.py
-from fastapi import FastAPI, HTTPException, Query
+import time
+from fastapi import FastAPI, HTTPException, Query, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 import pandas as pd
 import joblib
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-# ✅ Import modul baru pengganti CSV
-from database import init_db, log_prediction, get_recent_logs, get_log_count
+from database import (
+    init_db,
+    log_prediction, get_recent_logs, get_log_count,
+    log_request_metric, get_operational_metrics,
+    log_deployment_metric, get_deployment_history, get_latest_deployment,
+)
 from monitoring import run_full_monitoring
 
 app = FastAPI(title="Fraud Detection API - MLOps Edition")
 
-MODEL_PATH = Path("models/xgboost_model_2.pkl")
+MODEL_PATH = Path("models/rf_model.pkl")
 model: Any = None
+
+# Endpoint yang tidak perlu dicatat di metrics (noise)
+_SKIP_METRICS_ENDPOINTS = {"/health", "/metrics", "/docs", "/openapi.json"}
+
+
+# ── Middleware: Catat Latency & Error Rate ─────────────────────────────────────
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """
+    Secara otomatis mencatat latency dan status setiap request.
+    Berjalan transparan — tidak mengubah request/response apapun.
+    """
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.perf_counter()
+        status_code = 500
+        try:
+            response: Response = await call_next(request)
+            status_code = response.status_code
+            return response
+        except Exception as exc:
+            raise exc
+        finally:
+            # Hitung latency
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            endpoint   = request.url.path
+
+            # Skip endpoint yang tidak relevan
+            if endpoint not in _SKIP_METRICS_ENDPOINTS:
+                is_error = 1 if status_code >= 400 else 0
+                try:
+                    log_request_metric(
+                        endpoint=endpoint,
+                        method=request.method,
+                        status_code=status_code,
+                        latency_ms=latency_ms,
+                        is_error=is_error,
+                    )
+                except Exception:
+                    pass  # Jangan sampai metrics logging crash API utama
+
+
+app.add_middleware(MetricsMiddleware)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _normalize_scalar(value: Any) -> Any:
-    """Ubah numpy scalar/object ke tipe JSON-friendly."""
     if hasattr(value, "item"):
         value = value.item()
     if isinstance(value, (int, float, str, bool)) or value is None:
@@ -37,16 +85,10 @@ def _load_model() -> Any:
 @app.on_event("startup")
 def startup_event() -> None:
     global model
-
-    # ✅ Inisialisasi SQLite saat server pertama kali nyala
     init_db()
-
     model = _load_model()
     if model is None:
-        print(
-            f"[WARN] Model tidak ditemukan di {MODEL_PATH}. "
-            "Endpoint /predict akan mengembalikan 503 sampai model tersedia."
-        )
+        print(f"[WARN] Model tidak ditemukan di {MODEL_PATH}.")
     else:
         print(f"[API] Model loaded: {MODEL_PATH}")
 
@@ -55,25 +97,17 @@ def startup_event() -> None:
 
 @app.post("/reload")
 def trigger_reload(
-    model_name: str = Query(
-        default=None, description="Nama file model baru, cth: rf_model_v2.pkl"
-    )
+    model_name: str = Query(default=None)
 ):
-    """
-    Hot-reload model ke dalam memori tanpa mematikan server.
-    Dipanggil oleh n8n setelah model baru berhasil diunduh dari GitHub.
-    """
     global model, MODEL_PATH
-
     if model_name:
         new_path = Path(f"models/{model_name}")
         if not new_path.exists():
             raise HTTPException(
                 status_code=404,
-                detail=f"File model '{new_path}' tidak ditemukan di server.",
+                detail=f"File model '{new_path}' tidak ditemukan.",
             )
         MODEL_PATH = new_path
-
     try:
         new_model = _load_model()
         if new_model is None:
@@ -90,41 +124,47 @@ def trigger_reload(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to reload model: {e}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── Endpoints: Core ────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health() -> dict:
+    op_metrics     = get_operational_metrics(window_minutes=60)
+    last_deploy    = get_latest_deployment()
     return {
         "status":            "ok",
         "model_loaded":      model is not None,
         "model_path":        str(MODEL_PATH),
-        # ✅ Sekarang menampilkan jumlah record dari database
         "total_predictions": get_log_count(),
+        # ✅ Preview metrik operasional di health check
+        "last_1h": {
+            "requests":         op_metrics["total_requests"],
+            "error_rate":       f"{op_metrics['error_rate_percent']}%",
+            "avg_latency_ms":   op_metrics["latency_ms"]["avg"],
+            "p95_latency_ms":   op_metrics["latency_ms"]["p95"],
+        },
+        "last_deployment": {
+            "model":       last_deploy["model_name"]        if last_deploy else None,
+            "lead_time_s": last_deploy["lead_time_seconds"] if last_deploy else None,
+            "status":      last_deploy["status"]            if last_deploy else None,
+            "timestamp":   last_deploy["timestamp"]         if last_deploy else None,
+        },
     }
 
 
 @app.post("/predict")
 def predict(data: dict[str, Any]):
-    """
-    Menerima data transaksi, mengembalikan prediksi fraud,
-    dan menyimpan log ke SQLite secara otomatis.
-    """
     if model is None:
-        raise HTTPException(
-            status_code=503, detail="Model belum tersedia di server."
-        )
+        raise HTTPException(status_code=503, detail="Model belum tersedia.")
     if not isinstance(data, dict) or not data:
-        raise HTTPException(
-            status_code=422, detail="Payload harus berupa JSON object non-empty."
-        )
+        raise HTTPException(status_code=422, detail="Payload harus JSON object non-empty.")
 
     try:
-        df_input        = pd.DataFrame([data])
-        raw_prediction  = model.predict(df_input)[0]
-        prediction      = _normalize_scalar(raw_prediction)
+        df_input       = pd.DataFrame([data])
+        raw_prediction = model.predict(df_input)[0]
+        prediction     = _normalize_scalar(raw_prediction)
 
         probability = None
         if hasattr(model, "predict_proba"):
@@ -136,69 +176,96 @@ def predict(data: dict[str, Any]):
                 idx = int(proba_row.argmax())
             probability = float(proba_row[idx])
 
-        # ✅ Simpan ke SQLite (menggantikan logika CSV lama)
-        record_id = log_prediction(
-            data=data,
-            prediction=int(prediction),
-            probability=probability,
-        )
+        record_id = log_prediction(data, int(prediction), probability)
 
         return {
-            "record_id":  record_id,    # ✅ ID dari database untuk traceability
-            "prediction": prediction,
+            "record_id":   record_id,
+            "prediction":  prediction,
             "probability": probability,
-            "status":     "logged",
+            "status":      "logged",
         }
-
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Gagal memproses prediksi: {e}"
-        )
+        raise HTTPException(status_code=400, detail=f"Gagal memproses prediksi: {e}")
 
 
 @app.get("/logs")
 def get_logs(limit: int = Query(default=500, ge=1, le=5000)):
-    """
-    Mengembalikan N record terbaru dari database.
-    Digunakan oleh n8n atau untuk inspeksi manual.
-    """
     try:
-        # ✅ Baca dari SQLite (menggantikan pd.read_csv)
         return get_recent_logs(limit=limit)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Gagal membaca log: {e}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Endpoint Baru: Monitoring ──────────────────────────────────────────────────
+# ── Endpoints: Monitoring ──────────────────────────────────────────────────────
 
 @app.post("/run-monitoring")
 def run_monitoring(
-    limit: int = Query(
-        default=1000,
-        ge=100,
-        le=5000,
-        description="Jumlah record terbaru yang dianalisis.",
-    )
+    limit: int = Query(default=1000, ge=100, le=5000),
+    window_minutes: int = Query(default=60, ge=10, le=1440),
 ):
     """
-    Menjalankan analisis statistik lengkap (KS-Test + Chi-Squared/Fisher's).
-
-    Dipanggil oleh n8n secara terjadwal. n8n cukup memeriksa field 'status':
-      - 'OK'             → tidak ada drift, lanjut ke siklus berikutnya
-      - 'DRIFT_DETECTED' → kirim alert ke Telegram
-      - 'ERROR'          → ada masalah infrastruktur, perlu investigasi
-
-    Menggantikan seluruh logika JavaScript statistik di n8n.
+    Monitoring lengkap: Data Drift + Prediction Drift + Operational Metrics.
+    Dipanggil oleh n8n secara terjadwal.
     """
     try:
+        # 1. Drift detection
         logs   = get_recent_logs(limit=limit)
         report = run_full_monitoring(logs)
+
+        # 2. ✅ Tambahkan operational metrics ke dalam report
+        op_metrics  = get_operational_metrics(window_minutes=window_minutes)
+        last_deploy = get_latest_deployment()
+
+        report["operational_metrics"] = op_metrics
+        report["last_deployment"]     = last_deploy
+
+        # 3. Update status jika service degraded
+        if op_metrics["status"] == "DEGRADED":
+            report["status"] = "DRIFT_DETECTED"  # Trigger alert juga
+
         return report
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics")
+def get_metrics(
+    window_minutes: int = Query(default=60, ge=1, le=1440)
+):
+    """Endpoint dedicated untuk melihat metrik operasional."""
+    return get_operational_metrics(window_minutes=window_minutes)
+
+
+@app.post("/metrics/deployment")
+def record_deployment(data: dict[str, Any]):
+    """
+    ✅ Dipanggil oleh n8n setelah deployment selesai.
+    Mencatat lead time ke database.
+    """
+    required = {"model_name", "lead_time_seconds", "status"}
+    if not required.issubset(data.keys()):
         raise HTTPException(
-            status_code=500, detail=f"Monitoring gagal dieksekusi: {e}"
+            status_code=422,
+            detail=f"Field wajib: {required}",
         )
+    try:
+        record_id = log_deployment_metric(
+            model_name        = str(data["model_name"]),
+            lead_time_seconds = float(data["lead_time_seconds"]),
+            status            = str(data["status"]),
+            triggered_by      = str(data.get("triggered_by", "github_webhook")),
+        )
+        return {
+            "record_id": record_id,
+            "message":   "Deployment metric recorded.",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics/deployment")
+def get_deployment_metrics(limit: int = Query(default=10, ge=1, le=100)):
+    """Riwayat deployment beserta lead time masing-masing."""
+    return get_deployment_history(limit=limit)
