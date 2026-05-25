@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # --- Service 1: n8n (Orkestrator & Monitoring) ---
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n-container
@@ -15,30 +14,32 @@ services:
       - N8N_PROTOCOL=https
     volumes:
       - n8n_data:/home/node/.n8n
-      # MAPPING BARU: n8n membaca static_baseline.json
       - ./monitoring_config:/home/node/.n8n-files/monitoring_config:ro
-      # MAPPING BARU: n8n membaca log dari API secara Read-Only
       - ./logs:/home/node/.n8n-files/logs:ro
-      # MAPPING BARU: Pindahkan ke zona aman n8n agar bisa ditulis (write)
       - ./models:/home/node/.n8n-files/models
+    networks:
+      - mlops_network
 
-  # --- Service 2: Fraud API (FastAPI) ---
   fraud-api:
     build: ./api
     container_name: fraud-api-container
     ports:
       - "5000:5000"
+    environment:
+      # ✅ Path eksplisit agar tidak ambigu
+      - DB_PATH=/app/logs/predictions.db
+      - BASELINE_PATH=/app/monitoring_config/static_allbaseline.json
     volumes:
-      # MAPPING PENTING: Untuk Load Model
       - ./models:/app/models
-      # MAPPING PENTING: Untuk menulis log hasil prediksi
       - ./logs:/app/logs
       - ./api:/app
+      # ✅ TAMBAHKAN INI — baseline sekarang bisa dibaca fraud-api
+      - ./monitoring_config:/app/monitoring_config:ro
     networks:
-      - default
+      - mlops_network
 
 networks:
-  default:
+  mlops_network:
     driver: bridge
 
 volumes:
