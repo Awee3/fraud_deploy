@@ -1,3 +1,4 @@
+# simulation/simulate_traffic.py
 import os
 import random
 import time
@@ -6,13 +7,16 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-# 1. Konfigurasi
-BASE_DIR = Path(__file__).resolve().parent
-DATA_FILE = BASE_DIR / "test_data_sample.csv"
-API_URL = os.getenv("API_URL", "http://localhost:5000/predict")
-DELAY_SECONDS = float(os.getenv("DELAY_SECONDS", "1.5"))
+# ── Konfigurasi ────────────────────────────────────────────────────────────────
+BASE_DIR        = Path(__file__).resolve().parent
+API_URL         = os.getenv("API_URL",         "http://localhost:5000/predict")
+DELAY_SECONDS   = float(os.getenv("DELAY_SECONDS",   "0.5"))   # Dipercepat
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "10"))
-DROP_COLUMNS = [c.strip() for c in os.getenv("DROP_COLUMNS", "Class").split(",") if c.strip()]
+DROP_COLUMNS    = [
+    c.strip()
+    for c in os.getenv("DROP_COLUMNS", "Class").split(",")
+    if c.strip()
+]
 
 
 def _format_prob(value) -> str:
@@ -24,68 +28,73 @@ def _format_prob(value) -> str:
         return str(value)
 
 
-# 2. Fungsi Simulasi
-def run_simulation() -> None:
-    if not DATA_FILE.exists():
-        print(f"❌ Error: File tidak ditemukan: {DATA_FILE}")
+def run_simulation(csv_filename: str = "test_data_sample.csv") -> None:
+    data_file = BASE_DIR / csv_filename
+
+    if not data_file.exists():
+        print(f"❌ File tidak ditemukan: {data_file}")
+        print(f"   File yang tersedia di {BASE_DIR}:")
+        for f in BASE_DIR.glob("*.csv"):
+            print(f"   - {f.name}")
         return
 
-    try:
-        print(f"Membaca data dari {DATA_FILE}...")
-        df = pd.read_csv(DATA_FILE)
+    print(f"📂 Membaca data dari: {data_file}")
+    df = pd.read_csv(data_file)
 
-        if df.empty:
-            print("⚠️ Dataset kosong. Tidak ada transaksi untuk dikirim.")
-            return
+    if df.empty:
+        print("⚠️ Dataset kosong.")
+        return
 
-        # Buang kolom label/kolom yang tidak boleh dikirim ke model
-        cols_to_drop = [c for c in DROP_COLUMNS if c in df.columns]
-        if cols_to_drop:
-            print(f"Menghapus kolom non-feature: {cols_to_drop}")
-            df = df.drop(columns=cols_to_drop)
+    # Buang kolom label
+    cols_to_drop = [c for c in DROP_COLUMNS if c in df.columns]
+    if cols_to_drop:
+        print(f"🗑️  Menghapus kolom: {cols_to_drop}")
+        df = df.drop(columns=cols_to_drop)
 
-        if df.shape[1] == 0:
-            print("❌ Semua kolom terhapus. Tidak ada feature untuk diprediksi.")
-            return
+    records    = df.to_dict(orient="records")
+    total      = len(records)
+    success    = 0
+    failed     = 0
 
-        records = df.to_dict(orient="records")
+    print(f"🚀 Mengirim {total} transaksi ke {API_URL}")
+    print(f"⏱️  Delay antar request: {DELAY_SECONDS}s")
+    print("-" * 60)
 
-        print(f"Memulai simulasi. Mengirim data ke {API_URL}")
-        print("-" * 50)
+    with requests.Session() as session:
+        for index, payload in enumerate(records):
+            try:
+                response = session.post(
+                    API_URL,
+                    json=payload,
+                    timeout=REQUEST_TIMEOUT,
+                )
 
-        with requests.Session() as session:
-            for index, payload in enumerate(records):
-                try:
-                    response = session.post(
-                        API_URL,
-                        json=payload,
-                        timeout=REQUEST_TIMEOUT
-                    )
+                if response.ok:
+                    result   = response.json()
+                    prediksi = result.get("prediction", "-")
+                    prob     = _format_prob(result.get("probability"))
+                    rec_id   = result.get("record_id", "-")
+                    print(f"[{index+1}/{total}] ✅ ID:{rec_id} | Pred:{prediksi} | Prob:{prob}")
+                    success += 1
+                else:
+                    print(f"[{index+1}/{total}] ❌ HTTP {response.status_code}: {response.text}")
+                    failed += 1
 
-                    if response.ok:
-                        try:
-                            result = response.json()
-                        except ValueError:
-                            print(f"[{index}] ❌ GAGAL | Respons bukan JSON: {response.text}")
-                            continue
+            except requests.exceptions.RequestException as exc:
+                print(f"[{index+1}/{total}] ❌ Request error: {exc}")
+                failed += 1
+                # ✅ GANTI break → continue agar tetap lanjut
+                continue
 
-                        prediksi = result.get("prediction", "-")
-                        prob = _format_prob(result.get("probability"))
-                        print(f"[{index}] ✅ BERHASIL | Prediksi: {prediksi} (Prob: {prob})")
-                    else:
-                        print(f"[{index}] ❌ GAGAL | HTTP {response.status_code}: {response.text}")
+            time.sleep(random.uniform(DELAY_SECONDS * 0.8, DELAY_SECONDS * 1.2))
 
-                except requests.exceptions.RequestException as exc:
-                    print(f"[{index}] ❌ GAGAL | Request error: {exc}")
-                    break  # stop jika API tidak stabil/tidak bisa dijangkau
-
-                sleep_time = random.uniform(DELAY_SECONDS * 0.8, DELAY_SECONDS * 1.2)
-                time.sleep(sleep_time)
-
-    except Exception as e:
-        print(f"❌ Error tak terduga: {e}")
+    print("-" * 60)
+    print(f"✅ Berhasil : {success}/{total}")
+    print(f"❌ Gagal    : {failed}/{total}")
 
 
-# 3. Eksekusi
 if __name__ == "__main__":
-    run_simulation()
+    import sys
+    # Bisa terima argumen filename: python simulate_traffic.py simulasi_normal.csv
+    filename = sys.argv[1] if len(sys.argv) > 1 else "test_data_sample.csv"
+    run_simulation(filename)
