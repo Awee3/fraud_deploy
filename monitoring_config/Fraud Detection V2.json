@@ -1,0 +1,476 @@
+{
+  "name": "Fraud Detection V2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-model",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        0
+      ],
+      "id": "e65ec897-21d1-4bb7-aef0-6ba533cf667d",
+      "name": "Deployment Trigger",
+      "webhookId": "355513e0-3439-4c6d-aba2-98312f15a72e"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ambil semua commit dari webhook payload\nconst commits = items[0].json.body.commits;\n\n// Gabungkan semua file yang di-modified/added\nlet allFiles = [];\nfor (const commit of commits) {\n  allFiles = allFiles.concat(\n    commit.modified ?? [],\n    commit.added    ?? []\n  );\n}\n\n// Cari file .pkl pertama yang ditemukan\n// Ini dinamis — akan bekerja untuk rf_model.pkl, xgb_model.pkl, model_v2.pkl, dll.\nconst modelPath = allFiles.find(file => file.endsWith('.pkl'));\n\nif (!modelPath) {\n  throw new Error('Tidak ada file .pkl ditemukan di commit ini. Deployment dibatalkan.');\n}\n\n// Ambil nama file saja dari path\n// Contoh: \"models/rf_model_v2.pkl\" → \"rf_model_v2.pkl\"\nconst modelName = modelPath.split('/').pop();\n\nreturn [{\n  json: {\n    model_path:        modelPath,   // Path lengkap: \"models/rf_model_v2.pkl\"\n    model_name:        modelName,   // Nama file saja: \"rf_model_v2.pkl\"\n    deploy_start_time: new Date().toISOString(), // ✅ Untuk hitung lead time\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        0
+      ],
+      "id": "8ba82a9c-1dbe-4705-baf8-d7beeaee1227",
+      "name": "Set File Paths"
+    },
+    {
+      "parameters": {
+        "url": "=https://raw.githubusercontent.com/Awee3/tugas_akhir/main/{{ $json.model_path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        160,
+        0
+      ],
+      "id": "051912c6-3d89-42da-8b5e-ec3f419498de",
+      "name": "Fetch Model",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "f3K546Z5M3NSDOLr",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/home/node/.n8n-files/models/{{ $json.model_path.split('/').pop() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        384,
+        0
+      ],
+      "id": "a001d778-a98d-4dc5-9ca7-7e1fbeeaefaa",
+      "name": "Save to shared volume"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fraud-api-container:5000/reload",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        608,
+        0
+      ],
+      "id": "4b0754b4-89b9-47fe-9d26-d29dcbc21ef7",
+      "name": "API : Trigger Hot-Reload"
+    },
+    {
+      "parameters": {
+        "chatId": "1398433235",
+        "text": "=🚨 DRIFT ALERT\n\nStatus  : {{ $json.status }}\nSamples : {{ $json.total_samples }}\nSummary : {{ $json.summary }}\n\n📊 Drifted Features ({{ $json.drifted_features.length }}):\n{{ $json.drifted_features.join(', ') }}\n\n🔮 Prediction Drift:\n  └ Observed fraud rate : {{ $json.prediction_drift.observed_fraud_rate }}\n  └ Baseline fraud rate : {{ $json.prediction_drift.baseline_fraud_rate }}\n  └ p-value             : {{ $json.prediction_drift.p_value }}\n  └ Test method         : {{ $json.prediction_drift.test_method }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        384,
+        320
+      ],
+      "id": "be7c4bcf-cb86-41f7-aa11-87480cc29177",
+      "name": "Send a text message",
+      "webhookId": "c9390806-9f0a-459e-a51b-9cc95a6d3581",
+      "credentials": {
+        "telegramApi": {
+          "id": "KchaxW2Ns7N2mqbu",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -288,
+        416
+      ],
+      "id": "c304a0da-759b-4dda-a7e8-1578e5b16b4b",
+      "name": "Monitoring Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fraud-api-container:5000/run-monitoring?limit=1000",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -64,
+        416
+      ],
+      "id": "78a764ef-2845-49f7-8e90-4a5cb820ef8e",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a85ada7d-a8da-4877-87f6-eddb3d2c20b8",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "DRIFT_DETECTED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        416
+      ],
+      "id": "05c1a825-ce92-4fc7-9e35-7b81a105fe1f",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        384,
+        512
+      ],
+      "id": "2955f794-cd6b-4818-b971-f19b6c1f54d2",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "url": "http://fraud-api-container:5000/health",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "56c6d976-5b5f-479f-8f31-ea410a60b8db",
+      "name": "Smoke Test"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a70adb8c-1f4f-4b7c-93fe-afc834cba361",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1056,
+        0
+      ],
+      "id": "913dbdaf-730e-4c6d-83e5-047e1c69e6c8",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fraud-api-container:5000/metrics/deployment",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model_name\": \"{{ $json.model_name }}\",\n  \"lead_time_seconds\": {{ $json.lead_time_seconds }},\n  \"status\": \"{{ $json.status }}\",\n  \"triggered_by\": \"{{ $json.triggered_by }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1504,
+        -96
+      ],
+      "id": "5a84d76c-b248-4152-b568-15162cd5d24e",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ambil waktu trigger dari node pertama\nconst triggerTime = $('Deployment Trigger').first().json.headers?.['x-github-delivery']\n  ? new Date().toISOString()  // fallback jika tidak ada timestamp\n  : new Date().toISOString();\n\n// Hitung lead time dari sekarang\n// (idealnya simpan start time di Set File Paths, tapi ini approximation)\n// Ambil start time yang sudah disimpan di Set File Paths\nconst startTime   = $('Set File Paths').first().json.deploy_start_time;\nconst modelName   = $('Set File Paths').first().json.model_name;\n\nconst leadTimeSec = (Date.now() - new Date(startTime).getTime()) / 1000;\n\nreturn [{\n  json: {\n    model_name:        modelName,\n    lead_time_seconds: parseFloat(leadTimeSec.toFixed(3)),\n    status:            'success',\n    triggered_by:      'github_webhook',\n    summary:           `✅ ${modelName} deployed dalam ${leadTimeSec.toFixed(1)} detik`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -96
+      ],
+      "id": "ed968ab7-8d20-40c0-8267-e51ef5502d35",
+      "name": "Hitung Lead Time"
+    },
+    {
+      "parameters": {
+        "chatId": "1398433235",
+        "text": "=✅ DEPLOYMENT SUKSES  🤖 Model    : {{ $('Hitung Lead Time').first().json.model_name }} ⏱️ Lead Time: {{ $('Hitung Lead Time').first().json.lead_time_seconds }} detik 🕐 Waktu    : {{ $now.toLocaleString() }} 📍 Status   : Model aktif dan siap menerima prediksi",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1728,
+        -96
+      ],
+      "id": "ada4e2ed-c3c3-453f-a96e-4e14ce11ac55",
+      "name": "Send if success",
+      "webhookId": "e1aa594b-dbea-4eba-a192-3f12d6b756c1",
+      "credentials": {
+        "telegramApi": {
+          "id": "KchaxW2Ns7N2mqbu",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "=1398433235",
+        "text": "=❌ DEPLOYMENT GAGAL  ⚠️ Smoke test tidak merespons 🕐 Waktu   : {{ $now.toLocaleString() }} 🔍 Aksi    : Periksa container fraud-api-container",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1280,
+        96
+      ],
+      "id": "b91c48ce-656c-4969-94be-9f72aa16cbec",
+      "name": "Send if failed",
+      "webhookId": "20af0fe4-a809-480c-b2f8-f88a8f752388",
+      "credentials": {
+        "telegramApi": {
+          "id": "KchaxW2Ns7N2mqbu",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Deployment Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set File Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set File Paths": {
+      "main": [
+        [
+          {
+            "node": "Fetch Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Model": {
+      "main": [
+        [
+          {
+            "node": "Save to shared volume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to shared volume": {
+      "main": [
+        [
+          {
+            "node": "API : Trigger Hot-Reload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API : Trigger Hot-Reload": {
+      "main": [
+        [
+          {
+            "node": "Smoke Test",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monitoring Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Smoke Test": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Hitung Lead Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send if failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Send if success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hitung Lead Time": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "30fa5c97-5ebe-4d48-99f8-769f0d9460f9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c34ab0d871e738741a378bcbeb3606b5fb27def1e335303715fbc582cd01931"
+  },
+  "id": "kMTUlqtVE9h8WOqB",
+  "tags": []
+}
