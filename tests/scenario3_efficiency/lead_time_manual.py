@@ -1,20 +1,13 @@
-"""Stopwatch manual dengan checkpoint per langkah deployment manual."""
+"""Stopwatch manual per langkah deployment manual."""
 from datetime import datetime
 
-stages = [
-    "T0: commit/tag siap (start)",
-    "T1: SSH ke server",
-    "T2: git pull selesai",
-    "T3: model file di-copy ke models/",
-    "T4: docker compose restart selesai",
-    "T5: /health 200 + versi sesuai",
-    "T6: /predict smoke test PASS",
-]
-print("Lead Time MANUAL — tekan ENTER tiap milestone:\n")
+stages = ["T0: model siap (start)", "T1: SSH server", "T2: git pull selesai",
+          "T3: copy model ke models/", "T4: docker compose restart",
+          "T5: /health 200 + model_path sesuai", "T6: /predict smoke PASS"]
+print("Lead Time MANUAL — ENTER tiap milestone:\n")
 times = []
 for s in stages:
-    input(f"  [{s}] ENTER…")
-    t = datetime.now(); times.append(t)
+    input(f"  [{s}] ENTER…"); t = datetime.now(); times.append(t)
     print(f"    @ {t.isoformat(timespec='milliseconds')}")
 print("\n=== Durasi per stage ===")
 for i in range(1, len(times)):

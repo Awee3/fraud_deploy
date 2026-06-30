@@ -1,38 +1,40 @@
-"""Trigger webhook n8n & poll /health sampai versi target aktif."""
+"""Trigger webhook n8n & deteksi record deployment baru di /metrics/deployment.
+Jalankan dari root fraud_deploy/.
+"""
 import requests
 import time
-import json
 from datetime import datetime
 
 N8N_WEBHOOK = "http://localhost:5678/webhook/deploy-model"
-HEALTH_URL  = "http://localhost:5000/health"
-PREDICT_URL = "http://localhost:5000/predict"
-TARGET_VERSION = "rf_model_v4"     # set ke versi yg akan di-deploy
-MAX_WAIT, POLL = 300, 0.5
+DEPLOY_HIST = "http://localhost:5000/metrics/deployment"
+MAX_WAIT, POLL = 300, 1.0
 
-with open("tests/fixtures/sample_transaction.json") as f:
-    sample = json.load(f)
-
-print(f"[{datetime.now()}] BEFORE: {requests.get(HEALTH_URL, timeout=3).json()}")
-t0 = datetime.now()
-print(f"[{t0}] T0: trigger n8n webhook")
-print(f"  Webhook: {requests.post(N8N_WEBHOOK, timeout=10).status_code}")
-
-t_active = None
-while (datetime.now() - t0).total_seconds() < MAX_WAIT:
+def latest_record():
     try:
-        h = requests.get(HEALTH_URL, timeout=2).json()
-        if h.get("model_version") == TARGET_VERSION:
-            t_active = datetime.now(); break
+        hist = requests.get(DEPLOY_HIST, params={"limit": 1}, timeout=3).json()
+        if isinstance(hist, list) and hist:
+            return hist[0]
     except Exception:
         pass
+    return None
+
+base = latest_record()
+base_ts = base.get("timestamp") if base else None
+t0 = datetime.now()
+print(f"[{t0}] Trigger webhook (baseline deploy ts={base_ts})")
+requests.post(N8N_WEBHOOK, timeout=10)   # alternatif: git push .pkl manual
+
+detected = None; rec = None
+while (datetime.now() - t0).total_seconds() < MAX_WAIT:
+    cur = latest_record()
+    if cur and cur.get("timestamp") != base_ts:
+        detected = datetime.now(); rec = cur; break
     time.sleep(POLL)
 
-if t_active is None:
-    print(f"TIMEOUT after {MAX_WAIT}s")
+if detected is None:
+    print("TIMEOUT — tidak ada record deployment baru. Cek workflow n8n.")
 else:
-    smoke = requests.post(PREDICT_URL, json=sample, timeout=5)
-    t_smoke = datetime.now()
-    print(f"\n=== Lead Time AUTOMATED ===")
-    print(f"  T0 -> active : {(t_active - t0).total_seconds():.2f}s")
-    print(f"  T0 -> smoke  : {(t_smoke - t0).total_seconds():.2f}s (smoke {smoke.status_code})")
+    print("\n=== Lead Time AUTOMATED ===")
+    print(f"  External wall-clock (T0 -> record): {(detected - t0).total_seconds():.2f}s")
+    print(f"  Pipeline self-reported lead_time_seconds: {rec.get('lead_time_seconds')}")
+    print(f"  Record: {rec}")
