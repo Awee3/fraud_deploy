@@ -1,20 +1,27 @@
-"""Reset state DB sebelum tiap skenario (dengan backup otomatis)."""
+"""Kosongkan tabel DB sebelum tiap skenario (backup dulu).
+Default: kosongkan predictions + request_metrics (deployment_metrics DIPERTAHANKAN).
+Untuk hapus semua: python tests/utils/reset_state.py predictions request_metrics deployment_metrics
+Jalankan dari root fraud_deploy/.
+"""
 import sqlite3
 import shutil
+import sys
 from pathlib import Path
 from datetime import datetime
 
-DB_PATH = "api/logs/metrics.db"   # SESUAIKAN dgn volume di docker-compose
+DB_PATH = "logs/predictions.db"
 BACKUP_DIR = Path("tests/backups")
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
+tables = sys.argv[1:] or ["predictions", "request_metrics"]
 ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-shutil.copy(DB_PATH, BACKUP_DIR / f"metrics_{ts}.db")   # backup dulu
+shutil.copy(DB_PATH, BACKUP_DIR / f"predictions_{ts}.db")
 
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
-cur.execute("DELETE FROM request_metrics WHERE 1=1;")    # sesuaikan nama tabel
-cur.execute("DELETE FROM prediction_logs WHERE 1=1;")
+for t in tables:
+    cur.execute(f"DELETE FROM {t};")
+    print(f"  cleared: {t}")
 conn.commit()
 conn.close()
-print(f"[{datetime.now()}] State reset. Backup: metrics_{ts}.db")
+print(f"[{datetime.now()}] Reset done. Backup: predictions_{ts}.db | tables: {tables}")
