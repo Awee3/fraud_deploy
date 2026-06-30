@@ -18,16 +18,19 @@ MIN_SAMPLES   = 30     # Minimum sampel agar KS-Test valid secara statistik
 # Tier-1 (vital)  : fitur paling berpengaruh. Drift 1 fitur saja sudah CRITICAL.
 # Tier-2 (minor)  : sisanya. Perlu >= TIER2_MIN_DRIFT fitur drift SIMULTAN agar
 #                   memicu alert — ini mitigasi masalah multiple-testing
-#                   (29 KS-Test @ alpha=0.05 punya peluang ~77% minimal 1 false
-#                    positive; aturan Tier-2 menahan noise acak satuan).
+#                   Di bawah H0 (tidak ada drift), 26 fitur minor @ alpha=0.05
+#                   menghasilkan ~1.3 false-positive (ekspektasi). Ambang >=5
+#                   menekan peluang false-alert Tier-2 ke <1% (kontrol family-wise
+#                   error / mitigasi multiple-testing). Tidak melemahkan deteksi 2B
+#                   karena drift sintetis ada di Tier-1.
 #
 # PENTING: set TIER1_FEATURES = 3 fitur terpenting (huruf kecil), yaitu fitur
 # yang sama dengan yang di-shift oleh simulasi_drift.csv (top10[:3] di skrip
 # training). Dengan begitu kasus drift memicu Tier-1 CRITICAL secara bersih.
-TIER1_FEATURES  = ["v14", "v10", "v12"]   # <-- VERIFIKASI ke top-3 aktualmu
+TIER1_FEATURES  = ["v4", "v12", "v14"]    # top-3 importance XGBoost (terverifikasi dari simulasi_drift)
 TIER1_ALPHA     = 0.01    # ambang ketat untuk fitur vital (CRITICAL-level)
 TIER2_ALPHA     = 0.05    # ambang standar untuk fitur minor
-TIER2_MIN_DRIFT = 3       # minimal fitur minor drift simultan agar memicu alert
+TIER2_MIN_DRIFT = 5       # minimal fitur minor drift simultan agar memicu alert
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
