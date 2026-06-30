@@ -3,10 +3,8 @@ import os
 import random
 import time
 from pathlib import Path
-
 import pandas as pd
 import requests
-
 # ── Konfigurasi ────────────────────────────────────────────────────────────────
 BASE_DIR        = Path(__file__).resolve().parent
 API_URL         = os.getenv("API_URL",         "http://localhost:5000/predict")
