@@ -1,0 +1,8 @@
+{
+  "trigger_start": "2026-06-26T03:10:22.836",
+  "trigger_end": "2026-06-26T03:10:23.016",
+  "trigger_duration_ms": 179.885,
+  "model_path_before": "models/xgboost_model.pkl",
+  "model_path_after": "models/xgboost_model_v2.pkl",
+  "reload_status_code": 200
+}
