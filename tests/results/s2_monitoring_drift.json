@@ -1,0 +1,401 @@
+{
+  "tag": "drift",
+  "ts": "2026-06-26T21:36:01.735",
+  "status_code": 200,
+  "report": {
+    "status": "DRIFT_DETECTED",
+    "alert_level": "CRITICAL",
+    "trigger_reason": "Tier-1 drift: v4, v12, v14",
+    "total_samples": 1000,
+    "features_monitored": 29,
+    "drifted_features": [
+      "v4",
+      "v6",
+      "v11",
+      "v12",
+      "v14",
+      "v15"
+    ],
+    "critical_features": [
+      "v4",
+      "v11",
+      "v12",
+      "v14",
+      "v15"
+    ],
+    "tier1_features": [
+      "v4",
+      "v12",
+      "v14"
+    ],
+    "tier1_drifted": [
+      "v4",
+      "v12",
+      "v14"
+    ],
+    "tier2_drifted": [
+      "v6",
+      "v11",
+      "v15"
+    ],
+    "tier2_min_required": 5,
+    "feature_results": [
+      {
+        "feature": "v1",
+        "tier": "TIER2",
+        "ks_stat": 0.0284,
+        "p_value": 0.506248,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.0135,
+        "baseline_mean": 0.025309,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v2",
+        "tier": "TIER2",
+        "ks_stat": 0.0286,
+        "p_value": 0.497154,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.018727,
+        "baseline_mean": 0.011819,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v3",
+        "tier": "TIER2",
+        "ks_stat": 0.0414,
+        "p_value": 0.112798,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.124388,
+        "baseline_mean": 0.000493,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v4",
+        "tier": "TIER1",
+        "ks_stat": 0.8798,
+        "p_value": 0.0,
+        "is_drift": true,
+        "severity": "CRITICAL",
+        "prod_mean": 4.195435,
+        "baseline_mean": 0.02226,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v5",
+        "tier": "TIER2",
+        "ks_stat": 0.0202,
+        "p_value": 0.881199,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.064976,
+        "baseline_mean": -0.001986,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v6",
+        "tier": "TIER2",
+        "ks_stat": 0.0486,
+        "p_value": 0.038169,
+        "is_drift": true,
+        "severity": "WARNING",
+        "prod_mean": 0.044765,
+        "baseline_mean": -0.003178,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v7",
+        "tier": "TIER2",
+        "ks_stat": 0.0238,
+        "p_value": 0.726498,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.040254,
+        "baseline_mean": -0.01151,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v8",
+        "tier": "TIER2",
+        "ks_stat": 0.0228,
+        "p_value": 0.773319,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.052227,
+        "baseline_mean": 0.006406,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v9",
+        "tier": "TIER2",
+        "ks_stat": 0.027,
+        "p_value": 0.57172,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.013364,
+        "baseline_mean": -0.015834,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v10",
+        "tier": "TIER2",
+        "ks_stat": 0.0164,
+        "p_value": 0.976725,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.005404,
+        "baseline_mean": -0.009615,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v11",
+        "tier": "TIER2",
+        "ks_stat": 0.0688,
+        "p_value": 0.000723,
+        "is_drift": true,
+        "severity": "CRITICAL",
+        "prod_mean": 0.087606,
+        "baseline_mean": -0.029683,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v12",
+        "tier": "TIER1",
+        "ks_stat": 0.8988,
+        "p_value": 0.0,
+        "is_drift": true,
+        "severity": "CRITICAL",
+        "prod_mean": 2.967586,
+        "baseline_mean": -0.004737,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v13",
+        "tier": "TIER2",
+        "ks_stat": 0.0266,
+        "p_value": 0.590893,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.004345,
+        "baseline_mean": 0.004883,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v14",
+        "tier": "TIER1",
+        "ks_stat": 0.912,
+        "p_value": 0.0,
+        "is_drift": true,
+        "severity": "CRITICAL",
+        "prod_mean": 2.912832,
+        "baseline_mean": -0.006077,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v15",
+        "tier": "TIER2",
+        "ks_stat": 0.0586,
+        "p_value": 0.006356,
+        "is_drift": true,
+        "severity": "CRITICAL",
+        "prod_mean": -0.057042,
+        "baseline_mean": 0.023991,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v16",
+        "tier": "TIER2",
+        "ks_stat": 0.028,
+        "p_value": 0.524648,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.011771,
+        "baseline_mean": 0.011947,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v17",
+        "tier": "TIER2",
+        "ks_stat": 0.028,
+        "p_value": 0.524648,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.023532,
+        "baseline_mean": 0.005921,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v18",
+        "tier": "TIER2",
+        "ks_stat": 0.0276,
+        "p_value": 0.543308,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.011519,
+        "baseline_mean": 0.006839,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v19",
+        "tier": "TIER2",
+        "ks_stat": 0.0252,
+        "p_value": 0.658832,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.025115,
+        "baseline_mean": -0.01132,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v20",
+        "tier": "TIER2",
+        "ks_stat": 0.0212,
+        "p_value": 0.842801,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.012727,
+        "baseline_mean": -0.006151,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v21",
+        "tier": "TIER2",
+        "ks_stat": 0.0382,
+        "p_value": 0.172644,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.045002,
+        "baseline_mean": -0.002177,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v22",
+        "tier": "TIER2",
+        "ks_stat": 0.0346,
+        "p_value": 0.267194,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.028317,
+        "baseline_mean": 0.01629,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v23",
+        "tier": "TIER2",
+        "ks_stat": 0.0214,
+        "p_value": 0.8346,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.000553,
+        "baseline_mean": 8.9e-05,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v24",
+        "tier": "TIER2",
+        "ks_stat": 0.0282,
+        "p_value": 0.515414,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.023375,
+        "baseline_mean": 0.000138,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v25",
+        "tier": "TIER2",
+        "ks_stat": 0.0334,
+        "p_value": 0.305917,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": -0.003094,
+        "baseline_mean": -0.006874,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v26",
+        "tier": "TIER2",
+        "ks_stat": 0.0264,
+        "p_value": 0.600535,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.001989,
+        "baseline_mean": 0.0001,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v27",
+        "tier": "TIER2",
+        "ks_stat": 0.0178,
+        "p_value": 0.951596,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.007974,
+        "baseline_mean": -0.004318,
+        "prod_n": 1000
+      },
+      {
+        "feature": "v28",
+        "tier": "TIER2",
+        "ks_stat": 0.0254,
+        "p_value": 0.649092,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.014757,
+        "baseline_mean": -0.007364,
+        "prod_n": 1000
+      },
+      {
+        "feature": "amount",
+        "tier": "TIER2",
+        "ks_stat": 0.045,
+        "p_value": 0.067055,
+        "is_drift": false,
+        "severity": "NONE",
+        "prod_mean": 0.008009,
+        "baseline_mean": -0.004404,
+        "prod_n": 1000
+      }
+    ],
+    "prediction_drift": {
+      "test_method": "Fisher's Exact Test",
+      "chi2_stat": null,
+      "p_value": 1.0,
+      "observed_fraud_rate": 0.001,
+      "baseline_fraud_rate": 0.001728,
+      "is_drift": false,
+      "severity": "NONE"
+    },
+    "summary": "Monitored 29 features | Alert: CRITICAL | Tier-1 drift: 3 | Tier-2 drift: 3/5 | Prediction drift: False",
+    "operational_metrics": {
+      "window_minutes": 60,
+      "total_requests": 2000,
+      "error_count": 0,
+      "error_rate_percent": 0.0,
+      "requests_per_minute": 33.33,
+      "latency_ms": {
+        "avg": 34.732,
+        "min": 23.217,
+        "max": 137.117,
+        "p50": 28.983,
+        "p90": 52.117,
+        "p95": 70.555
+      },
+      "endpoint_breakdown": {
+        "/predict": 2000
+      },
+      "status": "HEALTHY"
+    },
+    "last_deployment": {
+      "id": 2,
+      "timestamp": "2026-06-15T09:02:18.728684+00:00",
+      "model_name": "xgboost_model.pkl",
+      "lead_time_seconds": 1157.697,
+      "status": "success",
+      "triggered_by": "github_webhook"
+    }
+  }
+}

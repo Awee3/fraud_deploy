@@ -1,0 +1,137 @@
+{
+  "n_runs": 10,
+  "csv": "simulasi_normal_2k.csv",
+  "n_alarm": 0,
+  "false_positive_rate": 0.0,
+  "runs": [
+    {
+      "run": 1,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 2,
+      "alarm": false
+    },
+    {
+      "run": 2,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 3,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 4,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 5,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 6,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 7,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 8,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 9,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    },
+    {
+      "run": 10,
+      "status": "OK",
+      "alert_level": "NONE",
+      "tier1_drifted": [],
+      "tier2_drifted": [
+        "v6",
+        "v11",
+        "v15"
+      ],
+      "n_tier2_drift": 3,
+      "alarm": false
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "n_calls": 20,
+  "mean_ms": 720.6,
+  "median_ms": 706.0,
+  "p95_ms": 929.4,
+  "min_ms": 664.0,
+  "max_ms": 929.4,
+  "stdev_ms": 59.0,
+  "statuses": [
+    "DRIFT_DETECTED"
+  ],
+  "measured_at": "2026-06-27T00:07:45"
+}
