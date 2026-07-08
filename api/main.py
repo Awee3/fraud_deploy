@@ -85,14 +85,21 @@ def _load_bundle() -> tuple[Any, Any]:
 def _prepare_features(data: dict[str, Any]) -> pd.DataFrame:
     """
     Bangun DataFrame 1-baris dari payload mentah lalu scale Amount (jika ada scaler).
-    Input diharapkan ber-Amount MENTAH; fungsi ini menghasilkan ruang fitur yang
-    dipakai model DAN yang akan di-log (Amount scaled).
+    Kolom di-reindex ke urutan fitur model (feature_names_in_) agar prediksi
+    tidak bergantung pada urutan key JSON dari client.
     """
     df = pd.DataFrame([data])
     if scaler is not None and "Amount" in df.columns:
         df["Amount"] = scaler.transform(df[["Amount"]])
-    return df
 
+    expected = getattr(model, "feature_names_in_", None)
+    if expected is not None:
+        expected = list(expected)
+        missing = [c for c in expected if c not in df.columns]
+        if missing:
+            raise ValueError(f"Fitur hilang dari payload: {missing}")
+        df = df[expected]
+    return df
 
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 
