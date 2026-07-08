@@ -7,6 +7,7 @@ import pandas as pd
 import joblib
 from pathlib import Path
 from typing import Any, Optional
+import os
 
 from database import (
     init_db,
@@ -19,7 +20,8 @@ from monitoring import run_full_monitoring
 app = FastAPI(title="Fraud Detection API - MLOps Edition")
 
 # ✅ XGBoost bundle: models/xgboost_model.pkl berisi {model, scaler, top_features}
-MODEL_PATH = Path("models/xgboost_model.pkl")
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "models"))
+MODEL_PATH = MODEL_DIR / "xgboost_model.pkl"
 model: Any = None
 scaler: Any = None
 
@@ -106,12 +108,11 @@ def startup_event() -> None:
 
 
 # ── Endpoints: Deployment ──────────────────────────────────────────────────────
-
 @app.post("/reload")
 def trigger_reload(model_name: str = Query(default=None)):
     global model, scaler, MODEL_PATH
     if model_name:
-        new_path = Path(f"models/{model_name}")
+        new_path = MODEL_DIR / model_name
         if not new_path.exists():
             raise HTTPException(status_code=404, detail=f"File model '{new_path}' tidak ditemukan.")
         MODEL_PATH = new_path
@@ -197,7 +198,6 @@ def predict(data: dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Gagal memproses prediksi: {e}")
 
-
 @app.get("/logs")
 def get_logs(limit: int = Query(default=500, ge=1, le=5000)):
     try:
@@ -223,7 +223,17 @@ def run_monitoring(
         report["last_deployment"]     = last_deploy
 
         if op_metrics["status"] == "DEGRADED":
-            report["status"] = "DRIFT_DETECTED"
+            if report.get("alert_level") == "NONE":
+                report["alert_level"] = "WARNING"
+            ops_reason = (
+                f"Degradasi operasional: error rate "
+                f"{op_metrics.get('error_rate_percent', '?')}%"
+            )
+            prev = report.get("trigger_reason", "")
+            report["trigger_reason"] = (
+                ops_reason if prev in ("", "Tidak ada drift signifikan")
+                else f"{prev} | {ops_reason}"
+            )
 
         return report
     except Exception as e:
