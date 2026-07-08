@@ -5,8 +5,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+import os
+from pathlib import Path
 
-DB_PATH = Path("logs/predictions.db")
+DB_PATH = Path(os.getenv("DB_PATH", "logs/predictions.db"))
 
 FEATURE_COLS = [f"v{i}" for i in range(1, 29)] + ["amount"]
 
