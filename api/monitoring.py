@@ -4,6 +4,7 @@ import os
 import numpy as np
 from scipy import stats
 from pathlib import Path
+from typing import Optional
 
 BASELINE_PATH = Path(
     os.getenv("BASELINE_PATH", "monitoring_config/static_allbaseline.json")
@@ -17,17 +18,20 @@ MIN_SAMPLES   = 30     # Minimum sampel agar KS-Test valid secara statistik
 # ── 2-Tier Alerting Config ──────────────────────────────────────────────────
 # Tier-1 (vital)  : fitur paling berpengaruh. Drift 1 fitur saja sudah CRITICAL.
 # Tier-2 (minor)  : sisanya. Perlu >= TIER2_MIN_DRIFT fitur drift SIMULTAN agar
-#                   memicu alert — ini mitigasi masalah multiple-testing
+#                   memicu alert — mitigasi praktis masalah multiple-testing.
 #                   Di bawah H0 (tidak ada drift), 26 fitur minor @ alpha=0.05
 #                   menghasilkan ~1.3 false-positive (ekspektasi). Ambang >=5
-#                   menekan peluang false-alert Tier-2 ke <1% (kontrol family-wise
-#                   error / mitigasi multiple-testing). Tidak melemahkan deteksi 2B
-#                   karena drift sintetis ada di Tier-1.
+#                   menekan probabilitas false-alarm agregat Tier-2 ke ~1%
+#                   (di bawah asumsi independensi antar fitur — wajar untuk
+#                   komponen PCA yang tidak berkorelasi). Tidak melemahkan
+#                   deteksi drift karena drift sintetis (3σ) ada di Tier-1.
 #
-# PENTING: set TIER1_FEATURES = 3 fitur terpenting (huruf kecil), yaitu fitur
-# yang sama dengan yang di-shift oleh simulasi_drift.csv (top10[:3] di skrip
-# training). Dengan begitu kasus drift memicu Tier-1 CRITICAL secara bersih.
-TIER1_FEATURES  = ["v4", "v12", "v14"]    # top-3 importance XGBoost (terverifikasi dari simulasi_drift)
+# CATATAN: Daftar fitur Tier-1 TIDAK di-hardcode di file ini. Daftar dibaca
+# saat runtime dari baseline JSON (meta.tier1_features), yang ditulis otomatis
+# oleh train_and_generate.py dari top-3 XGBoost feature importance — fitur yang
+# sama dengan yang di-shift oleh simulasi_drift.csv. Satu sumber kebenaran:
+#   training → baseline → monitoring.
+# Retrain model ⇒ komposisi Tier-1 ikut ter-update tanpa perubahan kode.
 TIER1_ALPHA     = 0.01    # ambang ketat untuk fitur vital (CRITICAL-level)
 TIER2_ALPHA     = 0.05    # ambang standar untuk fitur minor
 TIER2_MIN_DRIFT = 5       # minimal fitur minor drift simultan agar memicu alert
@@ -123,7 +127,8 @@ def _run_prediction_drift(
 
 # ── Main Runner ────────────────────────────────────────────────────────────────
 
-def _empty_report(status: str, n_logs: int, summary: str) -> dict:
+def _empty_report(status: str, n_logs: int, summary: str,
+                  tier1: Optional[list[str]] = None) -> dict:
     return {
         "status":             status,
         "alert_level":        "NONE",
@@ -134,7 +139,7 @@ def _empty_report(status: str, n_logs: int, summary: str) -> dict:
         "tier1_drifted":      [],
         "tier2_drifted":      [],
         "tier2_min_required": TIER2_MIN_DRIFT,
-        "tier1_features":     TIER1_FEATURES,
+        "tier1_features":     tier1 or [],
         "feature_results":    [],
         "prediction_drift":   {},
         "summary":            summary,
@@ -150,6 +155,9 @@ def run_full_monitoring(logs: list[dict]) -> dict:
     2. Chi-Squared / Fisher's Exact Test pada distribusi prediksi
     3. Evaluasi 2-Tier Alerting untuk menentukan status & alert_level
 
+    Daftar fitur Tier-1 dibaca dari baseline (meta.tier1_features) —
+    lihat catatan di blok konfigurasi atas.
+
     Return: dict laporan lengkap siap dikembalikan sebagai JSON response.
     """
     # ── Guard: tidak ada data produksi ────────────────────────────────────────
@@ -161,6 +169,18 @@ def run_full_monitoring(logs: list[dict]) -> dict:
         baseline = _load_baseline()
     except FileNotFoundError:
         return _empty_report("ERROR", len(logs), f"Baseline tidak ditemukan di: {BASELINE_PATH}")
+
+    # ── Tier-1 dari baseline (single source of truth) ──────────────────────────
+    tier1_features = [
+        f.lower() for f in baseline.get("meta", {}).get("tier1_features", [])
+    ]
+    if not tier1_features:
+        return _empty_report(
+            "ERROR", len(logs),
+            "Baseline tidak memuat meta.tier1_features — regenerate dengan "
+            "train_and_generate.py. Monitoring dihentikan agar klasifikasi "
+            "tier tidak salah.",
+        )
 
     # ── 1. Data Drift: KS-Test per fitur ──────────────────────────────────────
     feature_results  = []
@@ -183,7 +203,7 @@ def run_full_monitoring(logs: list[dict]) -> dict:
         ks_stat, p_value = _run_ks_test(baseline_samples, prod_samples)
         severity         = _classify_severity(p_value)
         is_drift         = bool(p_value < ALPHA)
-        tier             = "TIER1" if feature in TIER1_FEATURES else "TIER2"
+        tier             = "TIER1" if feature in tier1_features else "TIER2"
 
         result = {
             "feature":       feature,
@@ -266,7 +286,7 @@ def run_full_monitoring(logs: list[dict]) -> dict:
         "features_monitored": len(feature_results),
         "drifted_features":   drifted_features,     # semua p<0.05 (dipakai Telegram)
         "critical_features":  critical_features,     # semua p<0.01
-        "tier1_features":     TIER1_FEATURES,
+        "tier1_features":     tier1_features,
         "tier1_drifted":      tier1_drifted,
         "tier2_drifted":      tier2_drifted,
         "tier2_min_required": TIER2_MIN_DRIFT,
