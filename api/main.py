@@ -12,7 +12,7 @@ import os
 from database import (
     init_db,
     log_prediction, get_recent_logs, get_log_count,
-    log_request_metric, get_operational_metrics,
+    log_request_metric_async, get_operational_metrics,
     log_deployment_metric, get_deployment_history, get_latest_deployment,
 )
 from monitoring import run_full_monitoring
@@ -46,7 +46,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             if endpoint not in _SKIP_METRICS_ENDPOINTS:
                 is_error = 1 if status_code >= 400 else 0
                 try:
-                    log_request_metric(
+                    log_request_metric_async(
                         endpoint=endpoint, method=request.method,
                         status_code=status_code, latency_ms=latency_ms, is_error=is_error,
                     )
