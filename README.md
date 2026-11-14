@@ -2,6 +2,32 @@
 
 A containerized fraud-detection platform built with FastAPI, machine-learning models, SQLite, statistical drift monitoring, traffic simulation, and n8n automation.
 
+## Related Repository: Model Development and Training
+
+This repository is the deployment and MLOps-integration component of a two-repository credit-card fraud detection project. The companion repository, **[Awee3/tugas_akhir — Credit Card Fraud Detection ML Development](https://github.com/Awee3/tugas_akhir)**, contains exploratory data analysis, data preparation, model experiments, training scripts, and generation of model and monitoring artifacts.
+
+The repositories have complementary responsibilities:
+
+| Repository | Responsibility |
+|---|---|
+| [tugas_akhir](https://github.com/Awee3/tugas_akhir) | Develop and train models; generate model bundles, monitoring baselines, and normal/drift simulation data |
+| **fraud_deploy** (this repository) | Serve predictions through FastAPI; store prediction and operational metrics; run drift monitoring; deploy and automate workflows with Docker and n8n |
+
+### Artifact hand-off
+
+The deployment-oriented training script in [tugas_akhir/src/train_and_generate.py](https://github.com/Awee3/tugas_akhir/blob/main/src/train_and_generate.py) generates artifacts intended for this repository:
+
+| Artifact from `tugas_akhir` | Expected location here |
+|---|---|
+| `models/xgboost_model.pkl` | `models/xgboost_model.pkl` |
+| `data/static_allbaseline.json` | `monitoring_config/static_allbaseline.json` |
+| `data/simulasi_normal.csv` and `data/simulasi_drift.csv` | `simulation/` |
+
+After transferring an artifact, make sure the model, scaler, 29-feature API contract, and monitoring baseline are compatible. The model-development README documents the training and artifact-generation steps; this README documents how to deploy, serve, monitor, and automate the system.
+
+➡️ **[Open the model-development repository](https://github.com/Awee3/tugas_akhir)**.
+
+
 ## Features
 
 - Real-time fraud prediction through a REST API
