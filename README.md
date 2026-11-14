@@ -841,7 +841,3 @@ Ensure the logs directory is mounted into the API container:
 - Drift alerts are statistical signals and require investigation.
 - A drift alert may require checking data pipelines, feature transformations, model performance, and retraining requirements.
 - Add a license file before distributing the project publicly.The README content has been provided in a copy-paste-ready format with no surrounding explanation.
-
-**Task completed:**
-
-Provided the complete README content in Markdown format for direct copying into readme.md.
