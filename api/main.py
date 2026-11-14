@@ -25,6 +25,9 @@ MODEL_PATH = MODEL_DIR / "xgboost_model.pkl"
 model: Any = None
 scaler: Any = None
 
+# Kontrak fitur API: payload klien wajib memuat 29 fitur ini
+API_FEATURES = [f"V{i}" for i in range(1, 29)] + ["Amount"]
+
 _SKIP_METRICS_ENDPOINTS = {"/health", "/metrics", "/docs", "/openapi.json"}
 
 
@@ -67,16 +70,18 @@ def _normalize_scalar(value: Any) -> Any:
     return str(value)
 
 
-def _load_bundle() -> tuple[Any, Any]:
+def _load_bundle(path: Optional[Path] = None) -> tuple[Any, Any]:
     """
-    Memuat artifact model. Mendukung dua format:
+    Memuat artifact model dari path yang diberikan (default: MODEL_PATH global).
+    Mendukung dua format:
       • dict {model, scaler, top_features}  → XGBoost bundle (format baru)
       • estimator telanjang                 → fallback (mis. model lama)
     Return: (model, scaler) — scaler bisa None jika tidak ada.
     """
-    if not MODEL_PATH.exists():
+    target = path if path is not None else MODEL_PATH
+    if not target.exists():
         return None, None
-    loaded = joblib.load(MODEL_PATH)
+    loaded = joblib.load(target)
     if isinstance(loaded, dict):
         return loaded.get("model"), loaded.get("scaler")
     return loaded, None
@@ -118,16 +123,33 @@ def startup_event() -> None:
 @app.post("/reload")
 def trigger_reload(model_name: str = Query(default=None)):
     global model, scaler, MODEL_PATH
-    if model_name:
-        new_path = MODEL_DIR / model_name
-        if not new_path.exists():
-            raise HTTPException(status_code=404, detail=f"File model '{new_path}' tidak ditemukan.")
-        MODEL_PATH = new_path
+    candidate = (MODEL_DIR / model_name) if model_name else MODEL_PATH
+    if not candidate.exists():
+        raise HTTPException(status_code=404,
+                            detail=f"File model '{candidate}' tidak ditemukan.")
     try:
-        new_model, new_scaler = _load_bundle()
+        new_model, new_scaler = _load_bundle(candidate)
         if new_model is None:
-            raise HTTPException(status_code=404, detail=f"Model gagal dimuat dari '{MODEL_PATH}'.")
-        model, scaler = new_model, new_scaler
+            raise HTTPException(status_code=404,
+                                detail=f"Model gagal dimuat dari '{candidate}'.")
+
+        # Validasi: prediksi dummy sesuai kontrak API sebelum model dipromosikan.
+        # Model yang tidak mampu melayani payload standar klien ditolak di sini,
+        # sehingga model aktif (lama) tidak pernah tersentuh.
+        df = pd.DataFrame([dict.fromkeys(API_FEATURES, 0.0)])
+        if new_scaler is not None:
+            df["Amount"] = new_scaler.transform(df[["Amount"]])
+        expected = getattr(new_model, "feature_names_in_", None)
+        if expected is not None:
+            missing = [c for c in expected if c not in df.columns]
+            if missing:
+                raise ValueError(
+                    f"Model membutuhkan fitur di luar kontrak API: {missing}")
+            df = df[list(expected)]
+        _ = new_model.predict(df)
+
+        # Promote: state global hanya berubah setelah seluruh validasi lolos.
+        model, scaler, MODEL_PATH = new_model, new_scaler, candidate
         return {
             "message":     "Model reloaded successfully.",
             "model_path":  str(MODEL_PATH),
@@ -137,7 +159,8 @@ def trigger_reload(model_name: str = Query(default=None)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500,
+                            detail=f"Validasi model gagal: {e}")
 
 
 # ── Endpoints: Core ────────────────────────────────────────────────────────────

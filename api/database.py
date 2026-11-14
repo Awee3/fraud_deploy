@@ -1,6 +1,8 @@
 # database.py
 import sqlite3
 import threading
+import queue
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +16,44 @@ FEATURE_COLS = [f"v{i}" for i in range(1, 29)] + ["amount"]
 
 _db_lock = threading.Lock()
 
+# ── Async metric writer (fire-and-forget) ─────────────────────────────────────
+_metric_queue: "queue.Queue[tuple]" = queue.Queue(maxsize=10000)
+
+def _metric_writer_loop():
+    import time as _time
+    while True:
+        batch = [_metric_queue.get()]              # blok sampai ada 1 item
+        deadline = _time.time() + 1.0              # kumpulkan maks 1 detik
+        while len(batch) < 500:
+            remaining = deadline - _time.time()
+            if remaining <= 0:
+                break
+            try:
+                batch.append(_metric_queue.get(timeout=remaining))
+            except queue.Empty:
+                break
+        try:
+            with _get_conn() as conn:
+                conn.executemany(
+                    """INSERT INTO request_metrics
+                       (timestamp, endpoint, method, status_code, latency_ms, is_error)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    batch,
+                )
+        except Exception:
+            pass
+
+threading.Thread(target=_metric_writer_loop, daemon=True).start()
+
+def log_request_metric_async(endpoint, method, status_code, latency_ms, is_error):
+    """Pengganti log_request_metric untuk middleware: enqueue saja, non-blocking."""
+    try:
+        _metric_queue.put_nowait((
+            datetime.now(timezone.utc).isoformat(),
+            endpoint, method, status_code, round(latency_ms, 3), is_error,
+        ))
+    except queue.Full:
+        pass                                   # drop daripada memblokir request
 # ── Schema ─────────────────────────────────────────────────────────────────────
 
 _SCHEMA = """

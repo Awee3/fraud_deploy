@@ -10,10 +10,11 @@
       "alert_level": "NONE",
       "tier1_drifted": [],
       "tier2_drifted": [
+        "v6",
         "v11",
         "v15"
       ],
-      "n_tier2_drift": 2,
+      "n_tier2_drift": 3,
       "alarm": false
     },
     {

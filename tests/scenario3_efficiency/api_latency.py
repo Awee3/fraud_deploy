@@ -32,6 +32,9 @@ for i in range(N):
     if i % 100 == 0 and i > 0:
         print(f"  {i}/{N}")
 
+WARMUP = 20
+lat = lat[WARMUP:]   # buang 20 pengukuran pertama (fase warm-up)
+
 s = sorted(lat)
 res = {"mode": MODE, "n_success": len(lat), "n_errors": err,
        "mean_ms": round(statistics.mean(lat), 3),

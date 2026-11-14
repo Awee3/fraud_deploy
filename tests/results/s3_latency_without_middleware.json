@@ -1,0 +1,12 @@
+{
+  "mode": "without_middleware",
+  "n_success": 980,
+  "n_errors": 0,
+  "mean_ms": 63.993,
+  "median_ms": 62.969,
+  "stdev_ms": 14.612,
+  "p50_ms": 62.971,
+  "p95_ms": 85.886,
+  "p99_ms": 109.749,
+  "max_ms": 215.449
+}

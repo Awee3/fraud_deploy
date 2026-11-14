@@ -6,7 +6,7 @@ Tujuan: mengukur tingkat false-positive secara empiris (idealnya 0 alarm dari N 
 Jalankan dari root fraud_deploy/:
     python tests/scenario2_drift/repeat_2a.py
     python tests/scenario2_drift/repeat_2a.py 10        # 10 ulangan
-    python tests/scenario2_drift/repeat_2a.py 10 simulasi_normal_2k.csv
+    python tests/scenario2_drift/repeat_2a.py 10 simulasi_drift_2k.csv
 
 Catatan:
 - Memanggil reset_state.py & simulate_traffic.py sebagai subprocess (identik dgn manual).
@@ -24,7 +24,7 @@ import requests
 
 # ── Konfigurasi ────────────────────────────────────────────────────────────────
 N_RUNS    = int(sys.argv[1]) if len(sys.argv) > 1 else 10
-CSV_NAME  = sys.argv[2] if len(sys.argv) > 2 else "simulasi_normal_2k.csv"
+CSV_NAME  = sys.argv[2] if len(sys.argv) > 2 else "simulasi_drift_2k.csv"
 MON_URL   = "http://localhost:5000/run-monitoring"
 PY        = sys.executable
 RESET     = ["tests/utils/reset_state.py"]
@@ -57,7 +57,7 @@ if not CSV_PATH.exists():
     print(f"[X] File tidak ditemukan: {CSV_PATH}")
     print("   Buat subset dulu, mis:")
     print("   python -c \"import pandas as pd; "
-          f"pd.read_csv('simulation/simulasi_normal.csv').head(2000)"
+          f"pd.read_csv('simulation/{CSV_NAME}').head(2000)"
           f".to_csv('simulation/{CSV_NAME}', index=False)\"")
     sys.exit(1)
 
